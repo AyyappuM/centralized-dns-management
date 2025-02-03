@@ -6,7 +6,11 @@ SPOKE_ACCOUNT_B_NUMBER=$(shell aws sts get-caller-identity --query "Account" --o
 terraform-init:
 	cd terraform && terraform init
 
+test:
+	cd terraform && terraform plan -generate-config-out=generated.tf --profile a1
+
 apply:
+	make deploy-foundational-resources-in-hub-account
 	make deploy-foundational-resources-in-spoke-account-a
 	make deploy-private-dns-namespace-in-spoke-account-a
 	make deploy-ecr-repo-in-spoke-account-a
@@ -17,6 +21,13 @@ apply:
 	make deploy-ecs-task-in-spoke-account-b
 	make deploy-private-links-in-spoke-account-b
 
+deploy-foundational-resources-in-hub-account:
+	cd terraform && terraform apply \
+	-target="module.hub_account.aws_vpc.dns_vpc" \
+	-target="module.hub_account.aws_security_group.allow_all_traffic" \
+	-target="module.hub_account.aws_subnet.private_subnet_1" \
+	-target="module.hub_account.aws_subnet.private_subnet_2" \
+	--auto-approve
 
 deploy-foundational-resources-in-spoke-account-a:
 	cd terraform && terraform apply \
