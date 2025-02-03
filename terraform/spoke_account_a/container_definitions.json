@@ -1,0 +1,35 @@
+[
+	{
+		"name": "servicea",
+		"image": "${service_a_ecr_repository_url}:latest",
+		"essential": true,
+		"cpu": 256,
+		"memory": 512,
+		"portMappings": [
+			{
+				"containerPort": 8080,
+				"hostPort": 8080,
+				"protocol": "tcp"
+			}
+		],
+		"logConfiguration": {
+			"logDriver": "awslogs",
+			"options": {
+				"awslogs-group": "/ecs/service/servicea",
+				"awslogs-create-group": "true",
+				"awslogs-region": "${region}",
+				"awslogs-stream-prefix": "ecs"
+			}
+		},
+		"healthCheck": {
+            "command": [
+                "CMD-SHELL",
+                "echo \"healthy\""
+            ],
+            "interval": 5,
+            "timeout": 10,
+            "retries": 10
+        },
+        "readonlyRootFilesystem": false
+	}	
+]
