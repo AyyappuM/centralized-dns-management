@@ -10,8 +10,10 @@ test:
 	cd terraform && terraform plan -generate-config-out=generated.tf --profile a1
 
 apply:
-	make deploy-foundational-resources-in-hub-account
+	make deploy-ram-shares
+	make deploy-foundational-resources-in-hub-account	
 	make deploy-route-53-resolver-in-hub-account-and-share-them-with-spoke-accounts
+	make deploy-transit-gateway
 	make associate-private-hz-in-spoke-account-a-with-dns-vpc
 	make associate-private-hz-in-spoke-account-b-with-dns-vpc
 	make delete-private-hz-and-dns-vpc-association-authorization
@@ -42,13 +44,8 @@ deploy-route-53-resolver-in-hub-account-and-share-them-with-spoke-accounts:
 	-target="module.hub_account.aws_route53_resolver_rule_association.example" \
 	-target="module.hub_account.aws_route53_resolver_endpoint.outbound" \
 	-target="module.hub_account.aws_route53_resolver_endpoint.inbound" \
-	-target="module.hub_account.aws_ram_resource_share.example" \
-	-target="module.hub_account.aws_ram_principal_association.account_a" \
-	-target="module.hub_account.aws_ram_principal_association.account_b" \
-	-target="module.hub_account.aws_ram_resource_association.resolver_rule" \
-	-target="module.spoke_account_a.aws_ram_resource_share_accepter.spoke_account_a_receiver_accept" \
-	-target="module.spoke_account_b.aws_ram_resource_share_accepter.spoke_account_b_receiver_accept" \
 	-target="module.spoke_account_a.aws_route53_resolver_rule_association.resolver_rule_vpc_assocation_in_spoke_account_a" \
+	-target="module.hub_account.aws_ram_resource_association.resolver_rule" \
 	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
 	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
@@ -197,6 +194,27 @@ deploy-ecs-task-in-spoke-account-b:
 #	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
 #	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 #	--auto-approve
+
+deploy-ram-shares:
+	cd terraform && terraform apply \
+	-target="module.hub_account.aws_ram_resource_share.example" \
+	-target="module.hub_account.aws_ram_principal_association.account_a" \
+	-target="module.hub_account.aws_ram_principal_association.account_b" \
+	-target="module.spoke_account_a.aws_ram_resource_share_accepter.spoke_account_a_receiver_accept" \
+	-target="module.spoke_account_b.aws_ram_resource_share_accepter.spoke_account_b_receiver_accept" \
+	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
+	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
+	--auto-approve
+
+deploy-transit-gateway:
+	cd terraform && terraform apply \
+	-target="module.hub_account.aws_ec2_transit_gateway.example" \
+	-target="module.hub_account.aws_ram_resource_association.share_tgw" \
+	-target="module.spoke_account_a.aws_ec2_transit_gateway.example" \
+	-target="module.spoke_account_b.aws_ec2_transit_gateway.example" \
+	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
+	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
+	--auto-approve
 
 # -------------------------------------------------- DESTROY --------------------------------------------------
 

@@ -46,6 +46,13 @@ resource "aws_route_table" "public_route_table" {
     gateway_id = aws_internet_gateway.my_igw.id
   }
 
+  route {
+    cidr_block = "192.168.0.0/16"
+    gateway_id = var.transit_gateway_id
+  }
+
+  depends_on = [ "aws_ec2_transit_gateway_vpc_attachment.example" ]
+
   tags = {
     Name = "public-route-table"
   }
@@ -242,3 +249,19 @@ resource "aws_route53_resolver_rule_association" "resolver_rule_vpc_assocation_i
   resolver_rule_id = data.aws_route53_resolver_rule.example-local.id
   vpc_id           = aws_vpc.my_vpc.id
 }
+
+# TRANSIT GATEWAY ATTACHMENT
+
+resource "aws_ec2_transit_gateway_vpc_attachment" "example" {
+  transit_gateway_id = var.transit_gateway_id
+  vpc_id = "${aws_vpc.my_vpc.id}"
+  subnet_ids          = ["${aws_subnet.public_subnet.id}"]
+
+  transit_gateway_default_route_table_association = false
+  transit_gateway_default_route_table_propagation = false
+}
+
+variable "transit_gateway_id" {
+  type = string
+}
+

@@ -16,6 +16,7 @@ module "spoke_account_a" {
 
   aws_ram_resource_share_arn = module.hub_account.aws_ram_resource_share_arn
   dns_vpc_id = module.hub_account.dns_vpc_id
+  transit_gateway_id = module.hub_account.transit_gateway_id
 
   providers = {
     aws = aws.spoke_account_a
@@ -27,6 +28,7 @@ module "spoke_account_b" {
 
   aws_ram_resource_share_arn = module.hub_account.aws_ram_resource_share_arn
   dns_vpc_id = module.hub_account.dns_vpc_id
+  transit_gateway_id = module.hub_account.transit_gateway_id
 
   providers = {
     aws = aws.spoke_account_b
