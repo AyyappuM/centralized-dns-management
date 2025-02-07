@@ -1,5 +1,18 @@
 data "aws_availability_zones" "available" {}
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
+output "account_id" {
+  value = data.aws_caller_identity.current.account_id
+}
+
+variable "hub_account_id" {
+  type        = string
+}
+
+variable "spoke_account_b_id" {
+  type        = string
+}
 
 variable "aws_ram_resource_share_arn" {
   type = string
@@ -240,13 +253,13 @@ resource "aws_route53_vpc_association_authorization" "private_hz_in_spoke_accoun
 
 # LINK SHARED RESOLVER RULE WITH VPC
 
-data "aws_route53_resolver_rule" "example-local" {
+data "aws_route53_resolver_rule" "example_local" {
   domain_name = "example.local"
   rule_type   = "FORWARD"
 }
 
 resource "aws_route53_resolver_rule_association" "resolver_rule_vpc_assocation_in_spoke_account_a" {
-  resolver_rule_id = data.aws_route53_resolver_rule.example-local.id
+  resolver_rule_id = data.aws_route53_resolver_rule.example_local.id
   vpc_id           = aws_vpc.my_vpc.id
 }
 

@@ -20,13 +20,3 @@ terraform {
     }
   }
 }
-
-variable "account_a_id" {
-  description = "Account ID for Account A"
-  type        = string
-}
-
-variable "account_b_id" {
-  description = "Account ID for Account B"
-  type        = string
-}

@@ -11,8 +11,10 @@ test:
 
 apply:
 	make deploy-ram-shares
-	make deploy-foundational-resources-in-hub-account	
-	make deploy-route-53-resolver-in-hub-account-and-share-them-with-spoke-accounts
+	make deploy-foundational-resources-in-hub-account
+	make deploy-route-53-resolver-endpoints-in-hub-account
+	make deploy-route-53-resolver-rule-in-hub-account-and-share-route-53-resolver-rule-with-spoke-accounts
+	make share-route-53-resolver-with-spoke-accounts
 	make deploy-transit-gateway
 	make associate-private-hz-in-spoke-account-a-with-dns-vpc
 	make associate-private-hz-in-spoke-account-b-with-dns-vpc
@@ -26,7 +28,14 @@ apply:
 	make deploy-ecr-repo-in-spoke-account-b
 	make deploy-ecs-task-in-spoke-account-b
 
-# -------------------------------------------------- HUB ACCOUNT --------------------------------------------------
+deploy-ram-shares:
+	cd terraform && terraform apply \
+	-target="module.hub_account.aws_ram_resource_share.example" \
+	-target="module.hub_account.aws_ram_principal_association.account_a" \
+	-target="module.hub_account.aws_ram_principal_association.account_b" \
+	-target="module.spoke_account_a.aws_ram_resource_share_accepter.spoke_account_a_receiver_accept" \
+	-target="module.spoke_account_b.aws_ram_resource_share_accepter.spoke_account_b_receiver_accept" \
+	--auto-approve
 
 deploy-foundational-resources-in-hub-account:
 	cd terraform && terraform apply \
@@ -34,44 +43,43 @@ deploy-foundational-resources-in-hub-account:
 	-target="module.hub_account.aws_subnet.private_subnet_1" \
 	-target="module.hub_account.aws_subnet.private_subnet_2" \
 	-target="module.hub_account.aws_security_group.allow_all_traffic" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
-deploy-route-53-resolver-in-hub-account-and-share-them-with-spoke-accounts:
+deploy-route-53-resolver-endpoints-in-hub-account:
+	cd terraform && terraform apply \
+	-target="module.hub_account.aws_route53_resolver_endpoint.outbound" \
+	-target="module.hub_account.aws_route53_resolver_endpoint.inbound" \
+	--auto-approve
+
+deploy-route-53-resolver-rule-in-hub-account-and-share-route-53-resolver-rule-with-spoke-accounts:
 	cd terraform && terraform apply \
 	-target="module.hub_account.aws_route53_resolver_rule.example" \
 	-target="module.hub_account.aws_route53_resolver_rule_association.example" \
-	-target="module.hub_account.aws_route53_resolver_endpoint.outbound" \
-	-target="module.hub_account.aws_route53_resolver_endpoint.inbound" \
-	-target="module.spoke_account_a.aws_route53_resolver_rule_association.resolver_rule_vpc_assocation_in_spoke_account_a" \
 	-target="module.hub_account.aws_ram_resource_association.resolver_rule" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
+	--auto-approve
+
+share-route-53-resolver-with-spoke-accounts:
+	cd terraform && terraform apply \
+	-target="module.spoke_account_a.aws_route53_resolver_rule.example_local" \
+	-target="module.spoke_account_a.aws_route53_resolver_rule_association.resolver_rule_vpc_assocation_in_spoke_account_a" \
 	--auto-approve
 
 associate-private-hz-in-spoke-account-a-with-dns-vpc:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_a.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association_authorization" \
 	-target="module.hub_account.aws_route53_zone_association.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 associate-private-hz-in-spoke-account-b-with-dns-vpc:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_b.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association_authorization" \
 	-target="module.hub_account.aws_route53_zone_association.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 delete-private-hz-and-dns-vpc-association-authorization:
 	cd terraform && terraform destroy \
 	-target="module.spoke_account_a.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association_authorization" \
 	-target="module.spoke_account_b.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association_authorization" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 #disassociate-private-hz-with-dns-vpc:
@@ -80,11 +88,7 @@ delete-private-hz-and-dns-vpc-association-authorization:
 #	-target="module.hub_account.aws_route53_zone_association.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association" \
 #	-target="module.spoke_account_b.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association_authorization" \
 #	-target="module.hub_account.aws_route53_zone_association.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association" \
-#	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-#	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 #	--auto-approve
-
-# -------------------------------------------------- SPOKE ACCOUNT A --------------------------------------------------
 
 deploy-foundational-resources-in-spoke-account-a:
 	cd terraform && terraform apply \
@@ -94,22 +98,16 @@ deploy-foundational-resources-in-spoke-account-a:
 	-target="module.spoke_account_a.aws_route_table.public_route_table" \
 	-target="module.spoke_account_a.aws_route_table_association.aws_route_table_association" \
 	-target="module.spoke_account_a.aws_security_group.allow_all_traffic" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 deploy-private-dns-namespace-in-spoke-account-a:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_a.aws_service_discovery_private_dns_namespace.acc2_example_local" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 deploy-ecr-repo-in-spoke-account-a:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_a.aws_ecr_repository.service_a_ecr_repository" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 	aws ecr get-login-password --region ${AWS_REGION} --profile a2 | docker login --username AWS --password-stdin ${SPOKE_ACCOUNT_A_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com
 	docker build -t service_a_ecr_repository app/ServiceA
@@ -130,11 +128,7 @@ deploy-ecs-task-in-spoke-account-a:
 	-target="module.spoke_account_a.aws_ecs_task_definition.ecs_service" \
 	-target="module.spoke_account_a.aws_ecs_service.servicea" \
 	-target="module.spoke_account_a.aws_service_discovery_service.example" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
-
-# -------------------------------------------------- SPOKE ACCOUNT B --------------------------------------------------
 
 deploy-foundational-resources-in-spoke-account-b:
 	cd terraform && terraform apply \
@@ -144,22 +138,16 @@ deploy-foundational-resources-in-spoke-account-b:
 	-target="module.spoke_account_b.aws_route_table.public_route_table" \
 	-target="module.spoke_account_b.aws_route_table_association.aws_route_table_association" \
 	-target="module.spoke_account_b.aws_security_group.allow_all_traffic" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 deploy-private-dns-namespace-in-spoke-account-b:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_b.aws_service_discovery_private_dns_namespace.acc3_example_local" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 deploy-ecr-repo-in-spoke-account-b:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_b.aws_ecr_repository.service_b_ecr_repository" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 	aws ecr get-login-password --region ${AWS_REGION} --profile a3 | docker login --username AWS --password-stdin ${SPOKE_ACCOUNT_B_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com
 	docker build -t service_b_ecr_repository app/ServiceB
@@ -180,8 +168,6 @@ deploy-ecs-task-in-spoke-account-b:
 	-target="module.spoke_account_b.aws_ecs_task_definition.ecs_service" \
 	-target="module.spoke_account_b.aws_ecs_service.serviceb" \
 	-target="module.spoke_account_b.aws_service_discovery_service.example" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 #deploy-private-links-in-spoke-account-b:
@@ -191,20 +177,7 @@ deploy-ecs-task-in-spoke-account-b:
 #	-target="module.spoke_account_b.aws_vpc_endpoint.s3" \
 #	-target="module.spoke_account_b.aws_vpc_endpoint.cloudwatch_logs" \
 #	-target="module.spoke_account_b.aws_vpc_endpoint.ssmmessages" \
-#	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-#	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 #	--auto-approve
-
-deploy-ram-shares:
-	cd terraform && terraform apply \
-	-target="module.hub_account.aws_ram_resource_share.example" \
-	-target="module.hub_account.aws_ram_principal_association.account_a" \
-	-target="module.hub_account.aws_ram_principal_association.account_b" \
-	-target="module.spoke_account_a.aws_ram_resource_share_accepter.spoke_account_a_receiver_accept" \
-	-target="module.spoke_account_b.aws_ram_resource_share_accepter.spoke_account_b_receiver_accept" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
-	--auto-approve
 
 deploy-transit-gateway:
 	cd terraform && terraform apply \
@@ -212,18 +185,12 @@ deploy-transit-gateway:
 	-target="module.hub_account.aws_ram_resource_association.share_tgw" \
 	-target="module.spoke_account_a.aws_ec2_transit_gateway.example" \
 	-target="module.spoke_account_b.aws_ec2_transit_gateway.example" \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
-
-# -------------------------------------------------- DESTROY --------------------------------------------------
 
 destroy:
 	aws ecr batch-delete-image --repository-name service_a_ecr_repository --image-ids imageTag=latest --profile a2
 	aws ecr batch-delete-image --repository-name service_b_ecr_repository --image-ids imageTag=latest --profile a3
 	cd terraform && terraform destroy \
-	-var "account_a_id=$(SPOKE_ACCOUNT_A_NUMBER)" \
-	-var "account_b_id=$(SPOKE_ACCOUNT_B_NUMBER)" \
 	--auto-approve
 
 list:

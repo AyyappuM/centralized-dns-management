@@ -1,13 +1,16 @@
 data "aws_availability_zones" "available" {}
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
-variable "account_a_id" {
-  description = "Account ID for Account A"
+output "account_id" {
+  value = data.aws_caller_identity.current.account_id
+}
+
+variable "spoke_account_a_id" {
   type        = string
 }
 
-variable "account_b_id" {
-  description = "Account ID for Account B"
+variable "spoke_account_b_id" {
   type        = string
 }
 
@@ -95,15 +98,13 @@ resource "aws_route53_resolver_rule" "example" {
   rule_type   = "FORWARD"
   resolver_endpoint_id = aws_route53_resolver_endpoint.outbound.id
 
-  target_ip {
-    ip = "192.168.0.35"
-    port = 53
-  }
-
-  target_ip {
-    ip = "192.168.0.204"
-    port = 53
-  }  
+  dynamic "target_ip" {
+    for_each = aws_route53_resolver_endpoint.inbound.ip_address
+    content {
+      ip = target_ip.value.ip
+      port = 53
+    }
+  } 
 }
 
 # ASSOCIATE RESOLVER RULE WITH VPC
@@ -140,13 +141,15 @@ resource "aws_route53_resolver_endpoint" "inbound" {
 
   ip_address {
     subnet_id = aws_subnet.private_subnet_1.id
-    ip = "192.168.0.35"
   }
 
   ip_address {
     subnet_id = aws_subnet.private_subnet_2.id
-    ip = "192.168.0.204"
   }
+}
+
+output "resolver_endpoint_ips" {
+  value = [for ip in aws_route53_resolver_endpoint.inbound.ip_address : ip.ip]
 }
 
 # RAM RESOURCE SHARE
@@ -157,12 +160,12 @@ resource "aws_ram_resource_share" "example" {
 }
 
 resource "aws_ram_principal_association" "account_a" {
-  principal = var.account_a_id
+  principal = var.spoke_account_a_id
   resource_share_arn = aws_ram_resource_share.example.arn
 }
 
 resource "aws_ram_principal_association" "account_b" {
-  principal = var.account_b_id
+  principal = var.spoke_account_b_id
   resource_share_arn = aws_ram_resource_share.example.arn
 }
 

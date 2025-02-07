@@ -1,5 +1,18 @@
 data "aws_availability_zones" "available" {}
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
+output "account_id" {
+  value = data.aws_caller_identity.current.account_id
+}
+
+variable "hub_account_id" {
+  type        = string
+}
+
+variable "spoke_account_a_id" {
+  type        = string
+}
 
 variable "aws_ram_resource_share_arn" {
   type = string
