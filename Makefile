@@ -13,8 +13,9 @@ apply:
 	make deploy-ram-shares
 	make deploy-foundational-resources-in-hub-account
 	make deploy-route-53-resolver-endpoints-in-hub-account
-	make deploy-route-53-resolver-rule-in-hub-account-and-share-route-53-resolver-rule-with-spoke-accounts
-	make share-route-53-resolver-with-spoke-accounts
+	make deploy-route-53-resolver-rule-in-hub-account
+	make ram-share-resolver-rule
+	make ram-share-route-53-resolver-with-spoke-accounts
 	make deploy-transit-gateway
 	make associate-private-hz-in-spoke-account-a-with-dns-vpc
 	make associate-private-hz-in-spoke-account-b-with-dns-vpc
@@ -51,14 +52,17 @@ deploy-route-53-resolver-endpoints-in-hub-account:
 	-target="module.hub_account.aws_route53_resolver_endpoint.inbound" \
 	--auto-approve
 
-deploy-route-53-resolver-rule-in-hub-account-and-share-route-53-resolver-rule-with-spoke-accounts:
+deploy-route-53-resolver-rule-in-hub-account:
 	cd terraform && terraform apply \
 	-target="module.hub_account.aws_route53_resolver_rule.example" \
-	-target="module.hub_account.aws_route53_resolver_rule_association.example" \
+	--auto-approve
+
+ram-share-resolver-rule:
+	cd terraform && terraform apply \
 	-target="module.hub_account.aws_ram_resource_association.resolver_rule" \
 	--auto-approve
 
-share-route-53-resolver-with-spoke-accounts:
+ram-share-route-53-resolver-with-spoke-accounts:
 	cd terraform && terraform apply \
 	-target="module.spoke_account_a.aws_route53_resolver_rule.example_local" \
 	-target="module.spoke_account_a.aws_route53_resolver_rule_association.resolver_rule_vpc_assocation_in_spoke_account_a" \
@@ -81,14 +85,6 @@ delete-private-hz-and-dns-vpc-association-authorization:
 	-target="module.spoke_account_a.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association_authorization" \
 	-target="module.spoke_account_b.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association_authorization" \
 	--auto-approve
-
-#disassociate-private-hz-with-dns-vpc:
-#	cd terraform && terraform destroy \
-#	-target="module.spoke_account_a.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association_authorization" \
-#	-target="module.hub_account.aws_route53_zone_association.private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association" \
-#	-target="module.spoke_account_b.aws_route53_vpc_association_authorization.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association_authorization" \
-#	-target="module.hub_account.aws_route53_zone_association.private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association" \
-#	--auto-approve
 
 deploy-foundational-resources-in-spoke-account-a:
 	cd terraform && terraform apply \
@@ -169,15 +165,6 @@ deploy-ecs-task-in-spoke-account-b:
 	-target="module.spoke_account_b.aws_ecs_service.serviceb" \
 	-target="module.spoke_account_b.aws_service_discovery_service.example" \
 	--auto-approve
-
-#deploy-private-links-in-spoke-account-b:
-#	cd terraform && terraform apply \
-#	-target="module.spoke_account_b.aws_vpc_endpoint.ecr_api" \
-#	-target="module.spoke_account_b.aws_vpc_endpoint.ecr_docker" \
-#	-target="module.spoke_account_b.aws_vpc_endpoint.s3" \
-#	-target="module.spoke_account_b.aws_vpc_endpoint.cloudwatch_logs" \
-#	-target="module.spoke_account_b.aws_vpc_endpoint.ssmmessages" \
-#	--auto-approve
 
 deploy-transit-gateway:
 	cd terraform && terraform apply \

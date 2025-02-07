@@ -277,4 +277,3 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "example" {
 variable "transit_gateway_id" {
   type = string
 }
-
