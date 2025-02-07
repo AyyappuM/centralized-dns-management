@@ -1,6 +1,14 @@
 data "aws_availability_zones" "available" {}
 data "aws_region" "current" {}
 
+variable "aws_ram_resource_share_arn" {
+  type = string
+}
+
+variable "dns_vpc_id" {
+  type = string
+}
+
 resource "aws_vpc" "my_vpc" {
   cidr_block = "192.168.1.0/24"
   enable_dns_support = true
@@ -78,6 +86,10 @@ resource "aws_service_discovery_private_dns_namespace" "acc2_example_local" {
   name        = "acc2.example.local"
   description = "acc2.example.local"
   vpc         = aws_vpc.my_vpc.id
+}
+
+output "account_a_private_hosted_zone_id" {
+  value = aws_service_discovery_private_dns_namespace.acc2_example_local.hosted_zone
 }
 
 resource "aws_ecr_repository" "service_a_ecr_repository" {
@@ -208,3 +220,25 @@ resource "aws_service_discovery_service" "example" {
   }
 }
 
+resource "aws_ram_resource_share_accepter" "spoke_account_a_receiver_accept" {
+  share_arn = var.aws_ram_resource_share_arn
+}
+
+# HOSTED ZONE & VPC ASSOCIATION AUTHORIZATION
+
+resource "aws_route53_vpc_association_authorization" "private_hz_in_spoke_account_a_dns_vpc_in_hub_account_association_authorization" {
+  vpc_id  = var.dns_vpc_id
+  zone_id = aws_service_discovery_private_dns_namespace.acc2_example_local.hosted_zone
+}
+
+# LINK SHARED RESOLVER RULE WITH VPC
+
+data "aws_route53_resolver_rule" "example-local" {
+  domain_name = "example.local"
+  rule_type   = "FORWARD"
+}
+
+resource "aws_route53_resolver_rule_association" "resolver_rule_vpc_assocation_in_spoke_account_a" {
+  resolver_rule_id = data.aws_route53_resolver_rule.example-local.id
+  vpc_id           = aws_vpc.my_vpc.id
+}

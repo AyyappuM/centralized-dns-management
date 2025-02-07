@@ -1,6 +1,14 @@
 data "aws_availability_zones" "available" {}
 data "aws_region" "current" {}
 
+variable "aws_ram_resource_share_arn" {
+  type = string
+}
+
+variable "dns_vpc_id" {
+  type = string
+}
+
 resource "aws_vpc" "my_vpc" {
   cidr_block = "192.168.2.0/24"
   enable_dns_support = true
@@ -11,29 +19,41 @@ resource "aws_vpc" "my_vpc" {
   }
 }
 
-resource "aws_subnet" "private_subnet" {
+resource "aws_subnet" "public_subnet" {
   vpc_id     = aws_vpc.my_vpc.id
   cidr_block = "192.168.2.0/25"
   availability_zone = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "private-subnet"
+    Name = "public-subnet"
   }
 }
 
-resource "aws_route_table" "private_route_table" {
+resource "aws_internet_gateway" "my_igw" {
   vpc_id = aws_vpc.my_vpc.id
 
   tags = {
-    Name = "private-route-table"
+    Name = "my-internet-gateway"
   }
 }
 
-# Associate the private subnet with the private route table
+resource "aws_route_table" "public_route_table" {
+  vpc_id = aws_vpc.my_vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.my_igw.id
+  }
+
+  tags = {
+    Name = "public-route-table"
+  }
+}
+
 resource "aws_route_table_association" "aws_route_table_association" {
-  subnet_id      = aws_subnet.private_subnet.id
-  route_table_id = aws_route_table.private_route_table.id
+  subnet_id      = aws_subnet.public_subnet.id
+  route_table_id = aws_route_table.public_route_table.id
 }
 
 resource "aws_security_group" "allow_all_traffic" {
@@ -66,6 +86,10 @@ resource "aws_service_discovery_private_dns_namespace" "acc3_example_local" {
   name        = "acc3.example.local"
   description = "acc3.example.local"
   vpc         = aws_vpc.my_vpc.id
+}
+
+output "account_b_private_hosted_zone_id" {
+  value = aws_service_discovery_private_dns_namespace.acc3_example_local.hosted_zone
 }
 
 resource "aws_ecr_repository" "service_b_ecr_repository" {
@@ -166,7 +190,7 @@ resource "aws_ecs_service" "serviceb" {
 
   network_configuration {
     security_groups  = ["${aws_security_group.allow_all_traffic.id}"]
-    subnets          = ["${aws_subnet.private_subnet.id}"]
+    subnets          = ["${aws_subnet.public_subnet.id}"]
     assign_public_ip = true
   }
 
@@ -196,54 +220,25 @@ resource "aws_service_discovery_service" "example" {
   }
 }
 
-# DEPLOY PRIVATE LINKS
-
-resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id            = aws_vpc.my_vpc.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
-  vpc_endpoint_type = "Interface"
-  subnet_ids        = ["${aws_subnet.private_subnet.id}"]
-  security_group_ids = ["${aws_security_group.allow_all_traffic.id}"]
-
-  private_dns_enabled = true
-  tags = {
-    Name = "ECR API VPC Endpoint"
-  }
+resource "aws_ram_resource_share_accepter" "spoke_account_b_receiver_accept" {
+  share_arn = var.aws_ram_resource_share_arn
 }
 
-resource "aws_vpc_endpoint" "ecr_docker" {
-  vpc_id            = aws_vpc.my_vpc.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr" # ECR Docker
-  vpc_endpoint_type = "Interface"
-  subnet_ids        = ["${aws_subnet.private_subnet.id}"]
-  security_group_ids = ["${aws_security_group.allow_all_traffic.id}"]
+# HOSTED ZONE & VPC ASSOCIATION AUTHORIZATION
 
-  private_dns_enabled = true
-  tags = {
-    Name = "ECR Docker VPC Endpoint"
-  }
+resource "aws_route53_vpc_association_authorization" "private_hz_in_spoke_account_b_dns_vpc_in_hub_account_association_authorization" {
+  vpc_id  = var.dns_vpc_id
+  zone_id = aws_service_discovery_private_dns_namespace.acc3_example_local.hosted_zone
 }
 
-resource "aws_vpc_endpoint" "s3" {
-  vpc_id            = aws_vpc.my_vpc.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3" # S3 Gateway
-  vpc_endpoint_type = "Gateway"
-  route_table_ids   = ["${aws_route_table.private_route_table.id}"]
+# LINK SHARED RESOLVER RULE WITH VPC
 
-  tags = {
-    Name = "S3 Gateway VPC Endpoint"
-  }
-}
-
-resource "aws_vpc_endpoint" "cloudwatch_logs" {
-  vpc_id            = aws_vpc.my_vpc.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.logs" # CloudWatch Logs
-  vpc_endpoint_type = "Interface"
-  subnet_ids        = ["${aws_subnet.private_subnet.id}"]
-  security_group_ids = ["${aws_security_group.allow_all_traffic.id}"]
-
-  private_dns_enabled = true
-  tags = {
-    Name = "CloudWatch Logs VPC Endpoint"
-  }
-}
+#data "aws_route53_resolver_rule" "example-local" {
+#  domain_name = "example.local"
+#  rule_type   = "FORWARD"
+#}
+#
+#resource "aws_route53_resolver_rule_association" "resolver_rule_vpc_assocation_in_spoke_account_b" {
+#  resolver_rule_id = data.aws_route53_resolver_rule.example-local.id
+#  vpc_id           = aws_vpc.my_vpc.id
+#}
